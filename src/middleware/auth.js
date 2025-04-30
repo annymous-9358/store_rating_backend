@@ -10,12 +10,21 @@ const authenticateToken = (req, res, next) => {
   const authHeader = req.headers["authorization"];
   const token = authHeader && authHeader.split(" ")[1]; // Bearer TOKEN format
 
+  console.log(
+    `Auth middleware - Path: ${req.originalUrl}, Method: ${req.method}`
+  );
+  console.log(
+    `Auth header present: ${!!authHeader}, Token present: ${!!token}`
+  );
+
   if (!token) {
+    console.log("No token provided for authentication");
     return res.status(401).json({ message: "Authentication required" });
   }
 
   jwt.verify(token, JWT_SECRET, async (err, decoded) => {
     if (err) {
+      console.log("JWT verification error:", err.message);
       return res.status(403).json({ message: "Invalid or expired token" });
     }
 
@@ -39,6 +48,7 @@ const authenticateToken = (req, res, next) => {
       const result = await db.query(query, [decoded.userId]);
 
       if (result.rows.length === 0) {
+        console.log(`User with ID ${decoded.userId} no longer exists`);
         return res.status(403).json({ message: "User no longer exists" });
       }
 
@@ -51,9 +61,10 @@ const authenticateToken = (req, res, next) => {
         storeId: result.rows[0].store_id,
       };
 
+      console.log(`User authenticated: ${req.user.id}, role: ${req.user.role}`);
       next();
     } catch (error) {
-      console.error("Token verification error:", error);
+      console.error("Token verification DB error:", error);
       res.status(500).json({ message: "Server error", error: error.message });
     }
   });

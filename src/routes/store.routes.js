@@ -17,7 +17,7 @@ const storeValidation = [
 router.get("/", authenticateToken, async (req, res) => {
   try {
     const stores = await storeModel.getAllStores();
-    res.json({ stores });
+    res.json(stores); // Return stores array directly, not wrapped in an object
   } catch (error) {
     console.error("Get stores error:", error);
     res.status(500).json({ message: "Server error", error: error.message });
@@ -171,9 +171,18 @@ router.post(
   ],
   async (req, res) => {
     try {
+      console.log("Rate store endpoint hit:", {
+        storeId: req.params.id,
+        body: req.body,
+        user: req.user ? req.user.id : "Unknown",
+        path: req.originalUrl,
+        method: req.method,
+      });
+
       // Check for validation errors
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
+        console.log("Rating validation errors:", errors.array());
         return res.status(400).json({ errors: errors.array() });
       }
 
@@ -184,6 +193,7 @@ router.post(
       // Check if store exists
       const store = await storeModel.getStoreById(id);
       if (!store) {
+        console.log(`Store with ID ${id} not found`);
         return res.status(404).json({ message: "Store not found" });
       }
 
@@ -191,19 +201,29 @@ router.post(
       let existingRating = null;
       if (ratingModel.getRatingByUserAndStore) {
         existingRating = await ratingModel.getRatingByUserAndStore(userId, id);
+        console.log("Existing rating:", existingRating);
       } else {
         // Fallback: get all ratings for store and filter
         const ratings = await ratingModel.getRatingsByStoreId(id);
-        existingRating = ratings.find((r) => r.userId === userId);
+        existingRating = ratings.find(
+          (r) => r.userId === userId || r.user_id === userId
+        );
+        console.log("Fallback - Existing rating:", existingRating);
       }
 
       let result;
       if (existingRating) {
+        console.log(
+          `Updating existing rating ${existingRating.id} with value ${rating}`
+        );
         result = await ratingModel.updateRating(existingRating.id, {
           rating,
           comment,
         });
       } else {
+        console.log(
+          `Creating new rating for store ${id} from user ${userId} with value ${rating}`
+        );
         result = await ratingModel.createRating({
           store_id: id,
           user_id: userId,
@@ -212,6 +232,7 @@ router.post(
         });
       }
 
+      console.log("Rating result:", result);
       res.json({
         message: existingRating
           ? "Rating updated successfully"

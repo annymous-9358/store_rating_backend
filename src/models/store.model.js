@@ -1,8 +1,9 @@
 const db = require("../config/db");
 
-// Get all stores with their average ratings
+// Get all stores with their average ratings and all ratings
 const getAllStores = async () => {
-  const query = `
+  // First, get the basic store information with average ratings
+  const storesQuery = `
     SELECT 
       s.id, 
       s.name, 
@@ -26,19 +27,66 @@ const getAllStores = async () => {
       s.name
   `;
 
-  const result = await db.query(query);
-  return result.rows.map((row) => ({
+  const storesResult = await db.query(storesQuery);
+  const stores = storesResult.rows.map((row) => ({
     ...row,
     averageRating: Number(row.average_rating),
     totalRatings: Number(row.rating_count),
     average_rating: undefined,
     rating_count: undefined,
+    ratings: [], // Initialize empty ratings array to be filled below
   }));
+
+  // Now get all ratings for all stores
+  if (stores.length > 0) {
+    const ratingsQuery = `
+      SELECT 
+        r.id, 
+        r.store_id,
+        r.user_id,
+        r.rating, 
+        r.comment,
+        r.created_at,
+        r.updated_at,
+        u.name as user_name
+      FROM 
+        ratings r
+      JOIN 
+        users u ON r.user_id = u.id
+      WHERE 
+        r.store_id = ANY($1)
+      ORDER BY 
+        r.updated_at DESC
+    `;
+
+    const storeIds = stores.map((store) => store.id);
+    const ratingsResult = await db.query(ratingsQuery, [storeIds]);
+
+    // Group ratings by store_id and add them to the corresponding store
+    ratingsResult.rows.forEach((rating) => {
+      const storeIndex = stores.findIndex((s) => s.id === rating.store_id);
+      if (storeIndex !== -1) {
+        stores[storeIndex].ratings.push({
+          id: rating.id,
+          storeId: rating.store_id,
+          userId: rating.user_id,
+          userName: rating.user_name,
+          rating: rating.rating,
+          comment: rating.comment,
+          createdAt: rating.created_at,
+          updatedAt: rating.updated_at,
+        });
+      }
+    });
+  }
+
+  return stores;
 };
 
 // Get a single store by ID with its ratings
 const getStoreById = async (storeId) => {
-  const query = `
+  // First get store basic info with average rating
+  const storeQuery = `
     SELECT 
       s.id, 
       s.name, 
@@ -62,16 +110,54 @@ const getStoreById = async (storeId) => {
       s.id, u.name
   `;
 
-  const result = await db.query(query, [storeId]);
-  if (!result.rows[0]) return null;
-  const row = result.rows[0];
-  return {
-    ...row,
-    averageRating: Number(row.average_rating),
-    totalRatings: Number(row.rating_count),
+  const storeResult = await db.query(storeQuery, [storeId]);
+  if (!storeResult.rows[0]) return null;
+
+  const store = {
+    ...storeResult.rows[0],
+    averageRating: Number(storeResult.rows[0].average_rating),
+    totalRatings: Number(storeResult.rows[0].rating_count),
     average_rating: undefined,
     rating_count: undefined,
+    ratings: [],
   };
+
+  // Get all ratings for this store
+  const ratingsQuery = `
+    SELECT 
+      r.id, 
+      r.store_id,
+      r.user_id,
+      r.rating, 
+      r.comment,
+      r.created_at,
+      r.updated_at,
+      u.name as user_name
+    FROM 
+      ratings r
+    JOIN 
+      users u ON r.user_id = u.id
+    WHERE 
+      r.store_id = $1
+    ORDER BY 
+      r.updated_at DESC
+  `;
+
+  const ratingsResult = await db.query(ratingsQuery, [storeId]);
+
+  // Add ratings to the store object
+  store.ratings = ratingsResult.rows.map((rating) => ({
+    id: rating.id,
+    storeId: rating.store_id,
+    userId: rating.user_id,
+    userName: rating.user_name,
+    rating: rating.rating,
+    comment: rating.comment,
+    createdAt: rating.created_at,
+    updatedAt: rating.updated_at,
+  }));
+
+  return store;
 };
 
 // Get all ratings for a store

@@ -251,6 +251,36 @@ const deleteRating = async (id) => {
   }
 };
 
+/**
+ * Get rating by user ID and store ID
+ * @param {number} userId - User ID
+ * @param {number} storeId - Store ID
+ * @returns {Promise<Object|null>} Rating object or null if not found
+ */
+const getRatingByUserAndStore = async (userId, storeId) => {
+  const result = await db.query(
+    `SELECT id, store_id, user_id, rating, comment, created_at, updated_at
+     FROM ratings
+     WHERE user_id = $1 AND store_id = $2`,
+    [userId, storeId]
+  );
+
+  if (result.rows.length === 0) {
+    return null;
+  }
+
+  const r = result.rows[0];
+  return {
+    id: r.id,
+    storeId: r.store_id,
+    userId: r.user_id,
+    rating: r.rating,
+    comment: r.comment,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  };
+};
+
 module.exports = {
   createRating,
   getRatingById,
@@ -258,4 +288,5 @@ module.exports = {
   getRatingsByUserId,
   updateRating,
   deleteRating,
+  getRatingByUserAndStore,
 };

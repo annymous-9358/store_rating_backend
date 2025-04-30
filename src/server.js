@@ -6,6 +6,7 @@ const dotenv = require("dotenv");
 const authRoutes = require("./routes/auth.routes");
 const userRoutes = require("./routes/user.routes");
 const storeRoutes = require("./routes/store.routes");
+const ratingsRoutes = require("./routes/ratings.routes");
 
 // Load environment variables
 dotenv.config();
@@ -24,9 +25,23 @@ app.use(
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Simple logger
+// Request logger middleware
 app.use((req, res, next) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.originalUrl}`);
+  console.log("Request Headers:", JSON.stringify(req.headers));
+
+  // Log request body for POST/PUT/PATCH methods
+  if (["POST", "PUT", "PATCH"].includes(req.method)) {
+    console.log("Request Body:", JSON.stringify(req.body));
+  }
+
+  // Track response
+  const oldSend = res.send;
+  res.send = function (data) {
+    console.log(`Response Status: ${res.statusCode}`);
+    return oldSend.apply(res, arguments);
+  };
+
   next();
 });
 
@@ -34,6 +49,7 @@ app.use((req, res, next) => {
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/stores", storeRoutes);
+app.use("/api/ratings", ratingsRoutes);
 
 // Root route
 app.get("/", (req, res) => {
